@@ -165,6 +165,7 @@ Args:
 def _pip_version_proxy_impl(ctx):
     loads = "".join(["""\
 load("{repo}//:requirements.bzl", requirements_map_{key} = "requirements_map")
+load("{repo}//:requirements.bzl", requirement_repo_{key} = "requirement_repo")
 """.format(repo=v, key=k) for k, v in ctx.attr.values.items()])
 
     gathers = "".join(["""\
@@ -187,6 +188,17 @@ config_setting(
 def requirement_{key}(r):
     return "@{name}//:{key}__%s" % _sanitize(r)
 """.format(name=ctx.attr.name, key=k) for k in ctx.attr.values.keys()])
+
+    conditions_str = "    ".join(["""\
+conditions["@pip_deps//:{key}"] = [requirement_repo_{key}(name) + label] if name in requirements_map_{key} else []
+""".format(key=k) for k in ctx.attr.values.keys()])
+    specific_macros += """\
+def requirement_repo(name, label=""):
+    conditions = {{}}
+    {conditions}
+    conditions["//conditions:default"] = []
+    return select(conditions)
+""".format(conditions=conditions_str)
 
     update_deps = "".join(["""\
         "{repo}//:update",
